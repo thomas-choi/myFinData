@@ -1,20 +1,17 @@
-#!/home/thomas/env/PyQuant/bin/python
+## /home/thomas/env/PyQuant/bin/python
 import os
 from os import path
 from os import environ
-# from eoddata_client import EodDataHttpClient
 import pandas as pd
 import numpy as np
 from sqlalchemy import create_engine
-import pymysql
 import logging
 from dateutil.rrule import rrule, DAILY
-# import mysql.connector
-# from tiingo import TiingoClient
-import yfinance as yf  
+import yfinance as yf
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import pytz
+import time
 
 dbconn = None
 
@@ -30,6 +27,7 @@ def get_DBengine():
         logging.info(f'setup DBengine to {dbpath}')
         # Create SQLAlchemy engine to connect to MySQL Database
         dbconn = create_engine(dbpath)
+        logging.debug(f'dbconn=>{dbconn}')
     return dbconn
 
 def get_Max_date(dbntable, symbol=None):
@@ -49,9 +47,10 @@ def get_Max_date(dbntable, symbol=None):
 def StoreEOD(eoddata, DBn, TBLn):
     try:
         logging.info(f'StoreEOD size: {len(eoddata)} in table:{TBLn} on DB:{DBn}')
-
-        # Convert dataframe to sql table                                   
-        eoddata.to_sql(name=TBLn, con=get_DBengine(), if_exists='append', index=False)
+        dbcon = get_DBengine()
+        logging.info(f'StoreEOD dbcon: {dbcon}')
+        # Convert dataframe to sql table
+        eoddata.to_sql(name=TBLn, con=dbcon, if_exists='append', index=False)
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
@@ -93,12 +92,12 @@ def get_Last_Date_by_Sym(tblname, sym):
 
 def fetch_eoddata(quotes, exch, startD, endD):
     try:
-        
+
         rlist = []
         for i in range(len(quotes)):
             try:
                 q = quotes[i]
-                rec = {"Date":q.quote_datetime, "Symbol":q.symbol, "Exchange":exch, "Close":q.close, "Open":q.open, "High":q.high, "Low":q.low,'Volume':q.volume} 
+                rec = {"Date":q.quote_datetime, "Symbol":q.symbol, "Exchange":exch, "Close":q.close, "Open":q.open, "High":q.high, "Low":q.low,'Volume':q.volume}
                 logging.info(f'fetch eod: {rec}')
                 if q.quote_datetime >= startD and q.quote_datetime <= endD:
                     rlist.append(rec)
@@ -116,7 +115,7 @@ def yfinance_fetch_eod(sdate, tdate, list_name, dbFlag=True):
     exch_dict = load_symbols_dict()
     DBMKTDATA = environ.get("DBMKTDATA")
     TBLDAILYPRICE = environ.get("TBLDLYPRICE")
-    result=pd.DataFrame()
+    # result=pd.DataFrame()
     savColumns = ['Date','Symbol','Exchange','Close','Open','High','Low','Volume','AdjClose']
     # debug
     # symbol_list = ['AAL','AMAT']
@@ -149,7 +148,8 @@ def yfinance_fetch_eod(sdate, tdate, list_name, dbFlag=True):
         logging.info(f'outputing {dlypath}')
         totalDF.to_csv(dlypath, index=False)
         # if debug turn-off below
-        totalDF.to_sql(name=TBLDAILYPRICE, con=get_DBengine(), if_exists='append', index=False)
+        StoreEOD(totalDF, "", TBLDAILYPRICE)
+        # totalDF.to_sql(name=TBLDAILYPRICE, con=get_DBengine(), if_exists='append', index=False)
     logging.info(f'yfinance_fetch_eod finish the handle {list_name} UPTO {tdate}')
 
 def fetch_by_date(sDate, eDate):
@@ -184,7 +184,7 @@ def fetch_by_symbols(Sdate, Edate):
             for i, r in symlist.iterrows():
                 try:
                     logging.info(f'fetch EODDATA {r.Symbol},{r.Exchange} from {Sdate} to{Edate}')
-                    quotes = client.symbol_history_period_by_range(exchange_code=r.Exchange, symbol=r.Symbol, 
+                    quotes = client.symbol_history_period_by_range(exchange_code=r.Exchange, symbol=r.Symbol,
                         start_date=Sdate, end_date=Edate, period='D')
                     # quotes = client.quote_detail(exchange_code=exch, symbol=sym)
 
@@ -193,7 +193,7 @@ def fetch_by_symbols(Sdate, Edate):
                         logging.debug(f"Type: {type(r)}, LEN:{len(r)}")
                         rows += r
                 except Exception as e:
-                    logging.error("Exception occurred", exc_info=True)                        
+                    logging.error("Exception occurred", exc_info=True)
 
             eoddf = pd.DataFrame(rows)
             eoddf = eoddf.sort_values(by='Date')
@@ -236,7 +236,7 @@ def init_daily_output(Edate):
         logging.debug(rowlist)
         rowlist.to_sql(name=TBLDAILYPRICE, con=get_DBengine(), if_exists='append', index=False)
 
-        # data.StoreEOD(rowlist, DBPREDICT, TBLDAILYOUTPUT)  
+        # data.StoreEOD(rowlist, DBPREDICT, TBLDAILYOUTPUT)
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
@@ -295,7 +295,7 @@ def get_daily_performance(Sdate, Edate):
         outputdf.drop(columns=['close_change', 'prDKNG_2022-11-01_2022-11-02ice_movement','above_threshold'], inplace=True)
         lastdt = outputdf.iloc[-1, outputdf.columns.get_loc('ActualDate')]
         outputdf.to_csv(f'daily_output/dailyPerf_{Sdate}_{lastdt}.csv',index = False)
-        data.StoreEOD(outputdf, DBPREDICT, TBLDAILYPERF)  
+        data.StoreEOD(outputdf, DBPREDICT, TBLDAILYPERF)
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
@@ -310,12 +310,12 @@ def fetch_by_exchanges(Sdate, exchanges):
         if path.isfile(datap):
             logging.info(f'Loading EODDATA from {datap}')
             eoddf = pd.read_csv(datap)
-        else: 
+        else:
             rows = []
             for exch in exchanges:
                 try:
                     logging.info(f'fetch EODDAT {exch} on {Sdate}')
-                    quotes = client.quote_list_by_date_period(exchange_code=exch, 
+                    quotes = client.quote_list_by_date_period(exchange_code=exch,
                                                                 date=Sdate, period='D')
 
                     r = fetch_eoddata(quotes, exch, Sdate, Sdate)
@@ -323,20 +323,20 @@ def fetch_by_exchanges(Sdate, exchanges):
                         logging.debug(f"Type: {type(r)}, LEN:{len(r)}")
                         rows += r
                 except Exception as e:
-                    logging.error("Exception occurred", exc_info=True)                        
-            logging.info(f'Downloaded total {len(rows)} of records') 
+                    logging.error("Exception occurred", exc_info=True)
+            logging.info(f'Downloaded total {len(rows)} of records')
             eoddf = pd.DataFrame(rows)
             eoddf = eoddf.drop_duplicates(subset=['Date', 'Symbol'], keep='last')
             eoddf = eoddf.sort_values(by='Date')
             eoddf.to_csv(datap,index = False)
         eoddf['Date'] = pd.to_datetime(eoddf['Date'])
-        eoddf.to_sql(name=MKTBL, con=get_DBengine(), if_exists='append', index=False)
-        # data.StoreEOD(eoddf, MKDB, MKTBL)  
+        # eoddf.to_sql(name=MKTBL, con=get_DBengine(), if_exists='append', index=False)
+        eoddf.StoreEOD(eoddf, MKDB, MKTBL)
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
 if __name__ == '__main__':
-    load_dotenv("../Prod_config/Stk_eodfetch.env") #Check path for env variables
+    load_dotenv("../Prod_config/Stk_eodfetch_PythonAnywhere.env") #Check path for env variables
     logging.basicConfig(filename=f'logging/eoddata_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     logging.getLogger().setLevel(logging.DEBUG)
 
@@ -356,11 +356,19 @@ if __name__ == '__main__':
         Sdate = FIRSTTRAINDTE
     else:
         Sdate = mktdate + timedelta(days=1)
-    tNow = datetime.today()
-    today5PM = datetime.now().replace(hour=17, minute=0, second=0, microsecond=0)
-    logging.info(f'Current Date-Time is {tNow}, and cutt-off time is {today5PM}')
 
-    mToday = datetime.today().date()
+    tformats = '%Y-%m-%d %H:%M:%S'
+    tzinfo = time.tzname
+    tNow = datetime.now()
+    logging.info(f'Local System TimeZone info: {tzinfo[0]} and local time: {tNow}')
+
+    estNow = datetime.strptime(tNow.astimezone(pytz.timezone('US/Eastern')).strftime(tformats), tformats)
+    logging.info(f'EST time: {estNow}')
+
+    today5PM = estNow.replace(hour=17, minute=0, second=0, microsecond=0)
+    logging.info(f'Current Date-Time is {estNow}, and cutt-off time is {today5PM}')
+
+    mToday = estNow.date()
     if tNow < today5PM:
         mToday = mToday - timedelta(days=1)
     # debug override
