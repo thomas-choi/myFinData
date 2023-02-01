@@ -336,7 +336,7 @@ def fetch_by_exchanges(Sdate, exchanges):
         logging.error("Exception occurred", exc_info=True)
 
 if __name__ == '__main__':
-    load_dotenv("../Prod_config/Stk_eodfetch_PythonAnywhere.env") #Check path for env variables
+    load_dotenv("../Prod_config/Stk_eodfetch.env") #Check path for env variables
     logging.basicConfig(filename=f'logging/eoddata_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     logging.getLogger().setLevel(logging.DEBUG)
 
