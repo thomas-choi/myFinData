@@ -4,9 +4,12 @@ import logging
 from datetime import datetime, timedelta
 import time
 import pytz
+import pandas as pd
+from os import environ
 
-import sys, getopt
+# import sys, getopt
 
+import  dataUtil as DU
 
 load_dotenv("../Prod_config/Stk_eodfetch_PythonAnywhere.env") #Check path for env variables
 logging.getLogger().setLevel(logging.DEBUG)
@@ -48,12 +51,28 @@ def TimeTest():
         estToday = estToday - timedelta(days=1)
     logging.info(f'mToday after cutoff is {estToday}\n\n')
 
+def ImportOptionChain(inFile):
+
+    logging.info(f'Import File: {inFile} to database')
+    opt_tbl=environ.get("TBLOPTCHAIN")
+    all_chains = pd.read_csv(inFile)
+    recnum = len(all_chains)
+    logging.info(f'Record # {recnum}')
+    all_chains['Date'] = pd.to_datetime(all_chains['Date'])
+    all_chains['Expiration'] = pd.to_datetime(all_chains['Expiration'])
+
+    logging.debug(f'data file: {all_chains.info()}')
+    DU.StoreEOD(all_chains, " ", opt_tbl)
+
 import argparse
+
+load_dotenv("../Prod_config/Stk_eodfetch.env") #Check path for env variables
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-S', '--Sect', dest='InSect', type=str)
 parser.add_argument('-D', '--Date', dest='InDate', type=str)
 parser.add_argument('-U', '--Upload', dest='upload', action='store_true', default=False)
+parser.add_argument('-i', '--import', dest='InFile', default='', type=str)
 
 args = parser.parse_args()
 
@@ -65,11 +84,15 @@ if args.upload:
 else:
     print("Don't upload files")
 
-todt = datetime.strptime(args.InDate, '%Y-%m-%d')
-print(type(todt), todt)
-wd = todt.date().isoweekday()
-wf = wd in range(1,6)
-print(f'Weekday of {todt}: {wd} is in (1-5) {wf}')
+if len(args.InFile)> 0:
+    ImportOptionChain(args.InFile)
+
+if len(args.InDate)>0:
+    todt = datetime.strptime(args.InDate, '%Y-%m-%d')
+    print(type(todt), todt)
+    wd = todt.date().isoweekday()
+    wf = wd in range(1,6)
+    print(f'Weekday of {todt}: {wd} is in (1-5) {wf}')
 
 # my_datetime_est = datetime.today().astimezone(pytz.timezone('US/Eastern'))
 # print(f'mToday in EST is {my_datetime_est}')

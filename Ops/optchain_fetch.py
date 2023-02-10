@@ -156,5 +156,9 @@ if __name__ == '__main__':
         all_chains.to_csv(csvN, index=False)
         if args.upload:
             logging.info(f'Storing {csvN} in database')
-            DU.StoreEOD(all_chains, " ", opt_tbl)
+            nColumns=['Date','Section','UnderlyingSymbol','strike','Expiration','OptionType','contractSymbol',
+            'lastTradeDate','lastPrice','bid','ask','change','percentChange','volume',
+            'openInterest','impliedVolatility','inTheMoney','contractSize','currency','UnderlyingPrice']
+            saveDF=all_chains[nColumns]
+            DU.StoreEOD(saveDF, " ", opt_tbl)
 
