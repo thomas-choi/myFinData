@@ -6,8 +6,37 @@ import logging
 from datetime import datetime, timedelta
 import pytz
 import time
+import sshtunnel
 
 dbconn = None
+__sTunnel = None
+
+def setDBSSH():
+    global __sTunnel
+    global dbconn
+    # Once has the SSH set, the following DB calls go thought SSH
+    if __sTunnel is not None:
+        __sTunnel.close()
+    SSHHOST=environ.get("SSHHOST")
+    SSHUSR=environ.get("SSHUSR")
+    SSHPWD=environ.get("SSHPWD")
+    DBHOST=environ.get("DBHOST")
+    DBUSER=environ.get("DBUSER")
+    DBPWD=environ.get("DBPWD")
+    DB = environ.get("DBMKTDATA")
+    DBPORT = int(environ.get("DBPORT"))
+    __sTunnel = sshtunnel.SSHTunnelForwarder(
+        (SSHHOST),ssh_username=SSHUSR, ssh_password=SSHPWD,
+        remote_bind_address=(DBHOST, DBPORT)
+        )
+    logging.debug(f'sTunnel: {__sTunnel}')
+    __sTunnel.start()
+    dbpath = "mysql+pymysql://{user}:{pw}@{host}:{port}/{db}".format(host="127.0.0.1",
+    db=DB, user=DBUSER, pw=DBPWD, port=__sTunnel.local_bind_port)
+    logging.info(f'setup DBengine to {dbpath}')
+    # Create SQLAlchemy engine to connect to MySQL Database
+    dbconn = create_engine(dbpath)
+    logging.debug(f'dbconn=>{dbconn}')
 
 def nowbyTZ(tzName):
     tformats = '%Y-%m-%d %H:%M:%S'
@@ -32,12 +61,13 @@ def get_DBengine():
         uname=environ.get("DBUSER")
         pwd=environ.get("DBPWD")
         DB = environ.get("DBMKTDATA")
+        DBPORT = environ.get("DBPORT")
 
-        dbpath = "mysql+pymysql://{user}:{pw}@{host}/{db}".format(host=hostname, db=DB, user=uname, pw=pwd)
+        dbpath = "mysql+pymysql://{user}:{pw}@{host}:{port}/{db}".format(host=hostname, db=DB, user=uname, pw=pwd,port=DBPORT)
         logging.info(f'setup DBengine to {dbpath}')
         # Create SQLAlchemy engine to connect to MySQL Database
         dbconn = create_engine(dbpath)
-        logging.debug(f'dbconn=>{dbconn}')
+        logging.info(f'dbconn=>{dbconn}')
     return dbconn
 
 def get_Max_date(dbntable, symbol=None):
@@ -57,9 +87,9 @@ def get_Max_date(dbntable, symbol=None):
 def get_Max_Options_date(dbntable, symbol=None):
     try:
         if symbol is None:
-            query = f'SELECT max(Date) as maxdate, section FROM {dbntable} group by section order by maxdate desc;'
+            query = f'SELECT max(Date) as maxdate, section FROM {dbntable} group by section order by maxdate desc, section desc;'
         else:
-            query = f'SELECT max(Date) as maxdate, section FROM {dbntable} where UnderlyingSymbol = \'{symbol}\' group by section order by maxdate desc;'
+            query = f'SELECT max(Date) as maxdate, section FROM {dbntable} where UnderlyingSymbol = \'{symbol}\' group by section order by maxdate desc, section desc;'
 
         logging.info(f'get_Max_date :{query}')
         df = pd.read_sql(query, get_DBengine())
@@ -71,6 +101,25 @@ def get_Max_Options_date(dbntable, symbol=None):
     except Exception as e:
         logging.error("Exception occurred at get_Max_Options_date()", exc_info=True)
 
+def ExecSQL(query):
+    logging.info(f"ExecSQL: {query}")
+    try:
+        results = get_DBengine().execute(query)
+        logging.info(f'number of rows execed: {results.rowcount}')
+    except Exception as e:
+        logging.error("Exception occurred at load_df(np.linspace)", exc_info=True)
+    
+def load_df_SQL(query):
+    """
+    Return dataframe from SQL statement
+    """
+    logging.info(f'load_df_SQL({query}).')    
+    try: 
+        df = pd.read_sql(query, get_DBengine())
+        return df
+    except Exception as e:
+        logging.error("Exception occurred at load_df_SQL(np.linspace)", exc_info=True)
+
 def StoreEOD(eoddata, DBn, TBLn):
     try:
         logging.info(f'StoreEOD size: {len(eoddata)} in table:{TBLn} on DB:{DBn}')
@@ -81,3 +130,9 @@ def StoreEOD(eoddata, DBn, TBLn):
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
+
+def load_eod_price(ticker, start, end):
+    DB = environ.get("DBMKTDATA")
+    TBL = environ.get("TBLDLYPRICE")
+    query = f"SELECT * from {DB}.{TBL} where symbol = \'{ticker}\' and Date >= \'{start}\' and Date <= \'{end}\' order by Date;"
+    return load_df_SQL(query)
