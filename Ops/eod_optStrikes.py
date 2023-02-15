@@ -2,7 +2,6 @@ import pandas as pd
 from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import yfinance as yf
-import mplfinance as mpf
 import os
 
 from sqlalchemy import create_engine

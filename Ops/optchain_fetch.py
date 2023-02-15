@@ -108,8 +108,9 @@ if __name__ == '__main__':
         section='AM'
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-S', '--Sect', dest='InSect', type=str)
-    parser.add_argument('-D', '--Date', dest='InDate', type=str)
+    parser.add_argument('-S', '--Sect', dest='Section', type=str)
+    parser.add_argument('-D', '--Date', dest='Date', type=str)
+    parser.add_argument('-t', '--test', dest='test', action='store_true', default=False)
     parser.add_argument('-U', '--Upload', dest='upload', action='store_true', default=False)
     parser.add_argument('-c', '--check', dest='checkFlag', action='store_true', default=False)
     parser.add_argument('-f', '--force', dest='forceFlag', action='store_true', default=False)
@@ -117,16 +118,18 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.debug(f'argments: {args}')
-    if args.InSect is not None:
-        section = args.InSect
-    if args.InDate is not None:
-        todt = datetime.strptime(args.InDate, '%Y-%m-%d').date()
+    if args.Section is not None:
+        section = args.Section
+    if args.Date is not None:
+        todt = datetime.strptime(args.Date, '%Y-%m-%d').date()
     else:
         todt = tzNow.date()
 
     logging.info(f'optchain_fetch on {todt}-{section}; upload is {args.upload}')
 
     llists = ['etf_list', 'stock_list','us-cn_stock_list']
+    if args.test:
+        all_lists=['test_list']
     topOIn = 5
     DB=environ.get("DBMKTDATA")
     opt_tbl=environ.get("TBLOPTCHAIN")

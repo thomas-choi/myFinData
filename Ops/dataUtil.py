@@ -50,6 +50,7 @@ def nowbyTZ(tzName):
 
 def get_Symbollist(listname):
     basedir = environ.get("PROD_LIST_DIR")
+    logging.debug(f'Load symbol list {listname} from {basedir}')
     listpath = os.path.join(basedir, f'{listname}.csv')
     s_list = pd.read_csv(listpath)['Symbol'].unique()
     return s_list
@@ -108,13 +109,13 @@ def ExecSQL(query):
         logging.info(f'number of rows execed: {results.rowcount}')
     except Exception as e:
         logging.error("Exception occurred at load_df(np.linspace)", exc_info=True)
-    
+
 def load_df_SQL(query):
     """
     Return dataframe from SQL statement
     """
-    logging.info(f'load_df_SQL({query}).')    
-    try: 
+    logging.info(f'load_df_SQL({query}).')
+    try:
         df = pd.read_sql(query, get_DBengine())
         return df
     except Exception as e:
