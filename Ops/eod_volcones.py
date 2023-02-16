@@ -138,7 +138,7 @@ if __name__ == '__main__':
     tzNow = DU.nowbyTZ('US/Eastern')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-D', '--Date', dest='InDate', type=str)
+    parser.add_argument('-D', '--Date', dest='Date', type=str)
     parser.add_argument('-S', '--SSHDB', dest='SSHDB', action='store_true', default=False)
     parser.add_argument('-t', '--test', dest='test', action='store_true', default=False)
     parser.add_argument('-c', '--check', dest='checkFlag', action='store_true', default=False)
@@ -147,8 +147,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.debug(f'argments: {args}')
-    if args.InDate is not None:
-        todt = datetime.strptime(args.InDate, '%Y-%m-%d').date()
+    if args.Date is not None:
+        todt = datetime.strptime(args.Date, '%Y-%m-%d').date()
     else:
         todt = tzNow.date()
 

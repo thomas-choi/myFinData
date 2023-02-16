@@ -24,21 +24,21 @@ def OptStrikes(df, title, cStrikeList, pStrikeList, cLimit, pLimit, htmlfile='')
                     close=df['Close'])])
     # 1st strike is large width line
     if cStrikeList[0] <= cLimit:
-        fig.add_hline(y=cStrikeList[0], line_color="green", line_width=5, 
+        fig.add_hline(y=cStrikeList[0], line_color="green", line_width=5,
                     annotation_text=f"+1 {cStrikeList[0]} CALL", annotation_font_size=30)
     for i in range(1, len(cStrikeList)):
         if cStrikeList[i] <= cLimit:
-            fig.add_hline(y=cStrikeList[i], line_color="green", line_width=2, line_dash="dash", 
+            fig.add_hline(y=cStrikeList[i], line_color="green", line_width=2, line_dash="dash",
                         annotation_text=f"+{i+1} {cStrikeList[i]} CALL", annotation_font_size=30)
     if cStrikeList[0] >= pLimit:
-        fig.add_hline(y=pStrikeList[0], line_color="red", line_width=5, 
+        fig.add_hline(y=pStrikeList[0], line_color="red", line_width=5,
                     annotation_text=f"-1 {pStrikeList[0]} PUT", annotation_font_size=30)
     for i in range(1, len(pStrikeList)):
         if cStrikeList[i] >= pLimit:
-            fig.add_hline(y=pStrikeList[i], line_color="red", line_width=2, line_dash="dash", 
+            fig.add_hline(y=pStrikeList[i], line_color="red", line_width=2, line_dash="dash",
                         annotation_text=f"-{i+1} {pStrikeList[i]} PUT", annotation_font_size=30)
     # fig.add_hline(y=163, line_color="red", line_width=5, annotation_text="163 PUT", annotation_font_size=30)
-    fig.update_layout(title_text=title, title_x=0.5, 
+    fig.update_layout(title_text=title, title_x=0.5,
                      width=900,
                      height=800,
                      margin=dict(l=30,r=30,b=30,t=50),
@@ -97,7 +97,7 @@ if __name__ == '__main__':
     tzNow = DU.nowbyTZ('US/Eastern')
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('-D', '--Date', dest='InDate', type=str)
+    parser.add_argument('-D', '--Date', dest='Date', type=str)
     parser.add_argument('-n', '--Num', dest='topNum', type=int, default=4)
     parser.add_argument('-S', '--SSHDB', dest='SSHDB', action='store_true', default=False)
     parser.add_argument('-t', '--test', dest='test', action='store_true', default=False)
@@ -107,8 +107,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     logging.debug(f'argments: {args}')
-    if args.InDate is not None:
-        todt = datetime.strptime(args.InDate, '%Y-%m-%d').date()
+    if args.Date is not None:
+        todt = datetime.strptime(args.Date, '%Y-%m-%d').date()
     else:
         todt = tzNow.date()
 
