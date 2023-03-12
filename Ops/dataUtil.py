@@ -1,4 +1,5 @@
 import os
+from os import path
 from os import environ
 import pandas as pd
 from sqlalchemy import create_engine
@@ -25,6 +26,7 @@ def setDBSSH():
     DBPWD=environ.get("DBPWD")
     DB = environ.get("DBMKTDATA")
     DBPORT = int(environ.get("DBPORT"))
+    logging.debug(f'SSHHOST is {SSHHOST}, SSHUSR is {SSHUSR}, SSHPWD is {SSHPWD}')
     __sTunnel = sshtunnel.SSHTunnelForwarder(
         (SSHHOST),ssh_username=SSHUSR, ssh_password=SSHPWD,
         remote_bind_address=(DBHOST, DBPORT)
@@ -32,7 +34,7 @@ def setDBSSH():
     logging.debug(f'sTunnel: {__sTunnel}')
     __sTunnel.start()
     dbpath = "mysql+pymysql://{user}:{pw}@{host}:{port}/{db}".format(host="127.0.0.1",
-    db=DB, user=DBUSER, pw=DBPWD, port=__sTunnel.local_bind_port)
+        db=DB, user=DBUSER, pw=DBPWD, port=__sTunnel.local_bind_port)
     logging.info(f'setup DBengine to {dbpath}')
     # Create SQLAlchemy engine to connect to MySQL Database
     dbconn = create_engine(dbpath)
@@ -102,6 +104,19 @@ def get_Max_Options_date(dbntable, symbol=None):
     except Exception as e:
         logging.error("Exception occurred at get_Max_Options_date()", exc_info=True)
 
+def get_Latest_row_by_Symbol(dbntable, symbol):
+    try:
+        query = f"SELECT * from {dbntable} where Symbol = \'{symbol}\' order by Date desc;"
+        logging.info(f'get_Latest_row_by_Symbol :{query}')
+        df = pd.read_sql(query, get_DBengine())
+        if len(df) > 0:
+            max_row = df.iloc[0]
+        else:
+            max_row = None
+        return max_row
+    except Exception as e:
+        logging.error("Exception occurred at get_Latest_row_by_Symbol()", exc_info=True)
+
 def ExecSQL(query):
     logging.info(f"ExecSQL: {query}")
     try:
@@ -121,16 +136,89 @@ def load_df_SQL(query):
     except Exception as e:
         logging.error("Exception occurred at load_df_SQL(np.linspace)", exc_info=True)
 
+def load_df(stock_symbol=None, DailyMode=True, lastdt=None, startdt=None, dataMode="P"):
+    """
+    Return dataframe from histdailyprice3
+    """
+    HOST=environ.get("DBHOST")
+    PORT=environ.get("DBPORT")
+    USER=environ.get("DBUSER")
+    PASSWORD=environ.get("DBPWD")
+    logging.info(f'load_df ( {stock_symbol},{DailyMode},{lastdt},{startdt},{dataMode}).')    
+    dpath = None
+    if dataMode == "P":
+        DBNAME=environ.get("DBMKTDATA")
+        TBLName=environ.get("TBLDLYPRICE")
+        if stock_symbol is not None:
+            dpath = f"{TBLName}/{stock_symbol}.csv"
+        elif (lastdt is not None) and (startdt is not None):
+            dpath = f"{TBLName}/{startdt}-{lastdt}.csv"
+    else:
+        DBNAME=environ.get("DBPREDICT")
+        TBLName=environ.get("TBLDAILYOUTPUT")
+
+    if (dpath is not None) and path.isfile(dpath) and (not DailyMode):
+        logging.info(f'Load data from {dpath}.')
+        return pd.load_csv(dpath)
+    else:
+        logging.info(f'Load data from {DBNAME}.{TBLName} table in MySQL, Daily mode: {DailyMode}.')
+        try: 
+            wherecl=""
+            if stock_symbol is not None:
+                wherecl = f"where Symbol = '{stock_symbol}'"
+            if startdt is not None:
+                if len(wherecl) > 0:
+                    wherecl = wherecl + f" and Date>='{startdt}'"
+                else:
+                    wherecl = f"where Date>='{startdt}'"
+            if lastdt is not None:
+                if len(wherecl) > 0:
+                    wherecl = wherecl + f" and Date<='{lastdt}'"
+                else:
+                    wherecl = f"where Date<='{lastdt}'"
+            nlimit = ""
+            # if (stock_symbol is not None) and (startdt is None) and (lastdt is None):
+            #     if DailyMode:
+            #         nlimit = f" order by Date desc limit {DailySize}"
+            #     else:
+            #         nlimit = f" order by Date desc limit {TrainSize}"
+            if dataMode == "P":
+                query = f"SELECT Date, Symbol, Exchange, AdjClose, Close, Open, High, Low, Volume from {DBNAME}.{TBLName} {wherecl} {nlimit};"
+            else:
+                query = f"SELECT * from {DBNAME}.{TBLName} {wherecl} {nlimit};"
+
+            logging.info(f'load_df query:{query}')
+            histdailyprice3 = pd.read_sql(query, get_DBengine())
+            # conn.close()
+            df = histdailyprice3.copy()
+            df = df.sort_values(by=['Date'])
+            if (dpath is not None):
+                df.to_csv(dpath, index=False)
+
+            return df
+        except Exception as e:
+            logging.error("Exception occurred at load_df(np.linspace)", exc_info=True)
+
 def StoreEOD(eoddata, DBn, TBLn):
     try:
         logging.info(f'StoreEOD size: {len(eoddata)} in table:{TBLn} on DB:{DBn}')
         dbcon = get_DBengine()
         logging.info(f'StoreEOD dbcon: {dbcon}')
         # Convert dataframe to sql table
-        eoddata.to_sql(name=TBLn, con=dbcon, if_exists='append', index=False)
+        eoddata.to_sql(name=TBLn, con=dbcon, schema=DBn, if_exists='append', index=False)
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
+def StoreWebDaily(df):
+    try:
+        logging.info(f'StoreWebDaily size: {len(df)}')
+        dbname=environ.get("DBWEB")
+        table=environ.get("TBLWEBPREDICT")
+
+        ExecSQL(f'TRUNCATE TABLE {dbname}.{table};')
+        StoreEOD(df, dbname, table)
+    except Exception as e:
+        logging.error("Exception occurred at StoreDailyOutput()", exc_info=True)
 
 def load_eod_price(ticker, start, end):
     DB = environ.get("DBMKTDATA")
