@@ -33,7 +33,7 @@ nInstruments=['Federal_funds', 'CP',
        'DPCREDIT', 'U.S.',
        'TBill', 'TBill_4_week', 'TBill_3_month',
        'TBill_6_month', 'TBill_1_year', 'TBond', 'Nominal',
-       'TBond_1_month', 'TBond_3_month', 'TBond_6_month', 'TBond_1_year', 'TBond_2_year', 
+       'TBond_1_month', 'TBond_3_month', 'TBond_6_month', 'TBond_1_year', 'TBond_2_year',
        'TBond_3_year',
        'TBond_5_year', 'TBond_7_year', 'TBond_10_year', 'TBond_20_year', 'TBond_30_year',
        'Inflation', '5YTIISNK', '7YTIISNK', '10YTIINK', '20YTIINK',
@@ -42,8 +42,8 @@ nInstruments=['Federal_funds', 'CP',
 
 
 if __name__ == '__main__':
-    load_dotenv("../Prod_config/Stk_eodfetch_PythonAnywhere.env") #Check path for env variables
-    # logging.basicConfig(filename=f'logging/eodUSrates_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+    load_dotenv("../Prod_config/configure_PythonAnywhere.env") #Check path for env variables
+    logging.basicConfig(filename=f'logging/eod_USrates_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     logging.getLogger().setLevel(logging.DEBUG)
 
     tzNow = DU.nowbyTZ('US/Eastern')
@@ -88,8 +88,9 @@ if __name__ == '__main__':
     rates.index.name = 'Date'
     logging.debug(rates)
 
-    rates.reset_index().to_csv('USrates.csv', index=False)
-    retDF = pd.read_csv('USrates.csv')
+    datapath = "loadDB/USrates.csv"
+    rates.reset_index().to_csv(datapath, index=False)
+    retDF = pd.read_csv(datapath)
     retDF['Date'] = pd.to_datetime(retDF.Date)
     logging.debug(retDF)
     logging.debug(retDF.info())
@@ -99,5 +100,5 @@ if __name__ == '__main__':
     logging.info(f'US Rates max date is {maxdate}')
     stDF = retDF[retDF['Date']>maxdate]
     if len(stDF)>0:
-        logging.debug(f'Loading data to database ')
+        logging.debug('Loading data to database ')
         DU.StoreEOD(stDF, DB, TBL)
