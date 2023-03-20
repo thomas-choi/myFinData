@@ -15,3 +15,6 @@ This project is collect daily stock price data and saved in MySQL. It donwnloads
    ```
    docker build --no-cache -f Dockerfile-dev9.1.tf2-py3 -t spred-dev9.1:tf2-py3 .
    ``` 
+
+### 3) Download Daily US rates information is from
+https://www.federalreserve.gov/releases/h15/
