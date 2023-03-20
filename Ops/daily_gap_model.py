@@ -17,7 +17,7 @@ from os import environ
 import logging
 from datetime import datetime, timedelta
 from dateutil.rrule import rrule, DAILY
-from data import processing
+# from data import processing
 
 test_limit = 504
 data_window = 21

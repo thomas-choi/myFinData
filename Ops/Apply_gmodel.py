@@ -13,7 +13,7 @@ from os import environ
 import logging
 from datetime import datetime, timedelta
 from dateutil.rrule import rrule, DAILY
-from data import processing
+# from data import processing
 import daily_gap_model as dgm
 import dataUtil as DU
 
@@ -21,7 +21,7 @@ data_window = 21
 
 if __name__ == '__main__':
     print('My file path is ', __file__)
-    config_path = path.join("..", "Prod_config", "Stk_eodfetch_PythonAnywhere.env")
+    config_path = path.join("..", "Prod_config", "configure_PythonAnywhere.env")
     if not path.isfile(config_path):
         print(f'Config File Path {config_path} is not existed')
         quit()
