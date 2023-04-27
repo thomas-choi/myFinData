@@ -2,6 +2,7 @@ import os
 from os import path
 from os import environ
 import pandas as pd
+import numpy as np
 from sqlalchemy import create_engine
 import logging
 from datetime import datetime, timedelta
@@ -201,11 +202,12 @@ def load_df(stock_symbol=None, DailyMode=True, lastdt=None, startdt=None, dataMo
 
 def StoreEOD(eoddata, DBn, TBLn):
     try:
+        eoddata.head(3)
         logging.info(f'StoreEOD size: {len(eoddata)} in table:{TBLn} on DB:{DBn}')
         dbcon = get_DBengine()
         logging.info(f'StoreEOD dbcon: {dbcon}')
         # Convert dataframe to sql table
-        eoddata.to_sql(name=TBLn, con=dbcon, schema=DBn, if_exists='append', index=False)
+        eoddata.to_sql(name=TBLn, con=dbcon, if_exists='append', index=False)
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
@@ -225,3 +227,38 @@ def load_eod_price(ticker, start, end):
     TBL = environ.get("TBLDLYPRICE")
     query = f"SELECT * from {DB}.{TBL} where symbol = \'{ticker}\' and Date >= \'{start}\' and Date <= \'{end}\' order by Date;"
     return load_df_SQL(query)
+
+def load_symbols(symlistName):
+    """
+    # Return list of stock symbols.
+    """
+
+    PROD_LIST_DIR = environ.get("PROD_LIST_DIR")
+    try:
+        fpath = os.path.join(PROD_LIST_DIR, f'{symlistName}.csv')
+        logging.info(f'Fetch symbols from {fpath}')
+        stock_list = pd.read_csv(fpath)
+        symbol_list = np.sort(stock_list.Symbol.unique())
+        logging.debug(f'{symbol_list}')
+        return symbol_list
+    except Exception as e:
+        logging.error("Exception occurred at load_symbols()", exc_info=True)
+
+def load_symbols_dict():
+    # Return list of stock symbols.
+
+    PROD_LIST_DIR = environ.get("PROD_LIST_DIR")
+    try:
+        stock_list = pd.read_csv(os.path.join(PROD_LIST_DIR, "stock_exchange.csv"))
+        return dict(stock_list.values)
+    except Exception as e:
+        logging.error("Exception occurred at load_symbols_dict()", exc_info=True)
+
+def get_Last_Date_by_Sym(tblname, sym):
+    FIRSTTRAINDTE = datetime.strptime(environ.get("FIRSTTRAINDTE"), "%Y/%m/%d").date()
+
+    mktdate = get_Max_date(tblname, sym)
+    lastdt = FIRSTTRAINDTE
+    if mktdate is not None:
+        lastdt = mktdate + timedelta(days=1)
+    return lastdt
