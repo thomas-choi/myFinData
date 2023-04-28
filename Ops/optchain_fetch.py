@@ -50,10 +50,10 @@ def option_chains(ticker):
             lastdata = asset.history().iloc[-1]
             chains['UnderlyingPrice'] = lastdata.Close
         else:
-            logging.error(f"option_chains({ticker}.{expiration}) Underlying Price error")
+            logging.error(f"option_chains({ticker}.{expirations}) Underlying Price error")
             chains['UnderlyingPrice'] = -0.0001
     except Exception as e:
-        logging.error(f"option_chains({ticker}.{expiration}) error: {e}")
+        logging.error(f"option_chains({ticker}.{expirations}) error: {e}")
 
     return chains
 
