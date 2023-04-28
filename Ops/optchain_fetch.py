@@ -95,7 +95,7 @@ def ProcessOptions(ticker, process_dt, section, topOI, usedFile=False):
     return options_frame, OI_df
 
 if __name__ == '__main__':
-    load_dotenv("../Prod_config/Stk_eodfetch.env") #Check path for env variables
+    load_dotenv("../Prod_config/Stk_eodfetch_DO.env") #Check path for env variables
     logging.basicConfig(filename=f'logging/optchain_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     logging.getLogger().setLevel(logging.DEBUG)
 

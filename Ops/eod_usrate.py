@@ -42,7 +42,7 @@ nInstruments=['Federal_funds', 'CP',
 
 
 if __name__ == '__main__':
-    load_dotenv("../Prod_config/configure_PythonAnywhere.env") #Check path for env variables
+    load_dotenv("../Prod_config/Stk_eodfetch_DO.env") #Check path for env variables
     logging.basicConfig(filename=f'logging/eod_USrates_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     logging.getLogger().setLevel(logging.DEBUG)
 
@@ -96,7 +96,10 @@ if __name__ == '__main__':
     logging.debug(retDF.info())
     DB = environ.get("DBMKTDATA")
     TBL = environ.get("TBLUSRATES")
-    maxdate = DU.get_Max_date(f'{DB}.{TBL}').strftime("%Y-%m-%d")
+    maxdate = DU.get_Max_date(f'{DB}.{TBL}')
+    if maxdate is None:
+        maxdate = datetime(1800,1,1)
+    maxdate = maxdate.strftime("%Y-%m-%d")
     logging.info(f'US Rates max date is {maxdate}')
     stDF = retDF[retDF['Date']>maxdate]
     if len(stDF)>0:
