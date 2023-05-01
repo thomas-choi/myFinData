@@ -207,7 +207,7 @@ def StoreEOD(eoddata, DBn, TBLn):
         dbcon = get_DBengine()
         logging.info(f'StoreEOD dbcon: {dbcon}')
         # Convert dataframe to sql table
-        eoddata.to_sql(name=TBLn, con=dbcon, if_exists='append', index=False)
+        eoddata.to_sql(name=TBLn, con=dbcon, schema=DBn, if_exists='append', index=False)
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 

@@ -13,22 +13,42 @@ from os import environ
 import logging
 from datetime import datetime, timedelta
 from dateutil.rrule import rrule, DAILY
+import argparse
 # from data import processing
 import daily_gap_model as dgm
 import dataUtil as DU
+from SQLDB import SQLDB
+
 
 data_window = 21
 
 if __name__ == '__main__':
     print('My file path is ', __file__)
-    config_path = path.join("..", "Prod_config", "configure_PythonAnywhere.env")
-    if not path.isfile(config_path):
-        print(f'Config File Path {config_path} is not existed')
-        quit()
-    load_dotenv(config_path) #Check path for env variables
     logging.basicConfig(filename=f'logging/apply_gmodel_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     logging.getLogger().setLevel(logging.DEBUG)
     logging.getLogger("sqlalchemy.engine").setLevel(logging.INFO)
+
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-S', '--SSH', dest='SSH', action='store_true', default=False)
+    parser.add_argument('-c', '--check', dest='checkFlag', action='store_true', default=False)
+    parser.add_argument('-f', '--force', dest='forceFlag', action='store_true', default=False)
+    parser.add_argument('-t', '--test', dest='test', action='store_true', default=False)
+
+    tzNow = DU.nowbyTZ('US/Eastern')
+    # run this after 4:30pm EST for market closing prices
+    if (tzNow.hour < 9):
+        tzNow = tzNow - timedelta(days=1)
+
+    args = parser.parse_args()
+
+    logging.debug(f'argments: {args}')
+    todt = tzNow.date()
+    config_file = "../Prod_config/Stk_eodfetch_DO.env"
+    if not path.isfile(config_file):
+        print(f'Config File Path {config_file} is not existed')
+        quit()
+    load_dotenv(config_file) #Check path for env variables
 
     DBMKTDATA=environ.get("DBMKTDATA")
     DBPREDICT=environ.get("DBPREDICT")
@@ -112,7 +132,9 @@ if __name__ == '__main__':
             outdf = outdf[['Date','Symbol','Exchange','YTest','Ypred','Ypred-L','predClose','logRet']]
             DU.StoreEOD(outdf, DBPREDICT, TBLDLYPRED)
 
-    DU.setDBSSH()
+    if args.SSH:
+        DU.setDBSSH()
+
     # main procedure start here
     # add code to handle multiply stock code lists
     #
@@ -123,22 +145,28 @@ if __name__ == '__main__':
     #
     predictOnly = False
 
+    # debug override
+    if not (todt.isoweekday() in range(1,6) or args.forceFlag):
+        print('Jobs must be ran from Monday to Friday. use -f otherwise')
+        quit()
+
+    if args.checkFlag:
+        quit()
+
     code_list = ["etf_list", "stock_list", "crypto_list", "us-cn_stock_list"]
-    # code_list = ['test_list']
+    if args.test:
+        code_list=['test_list']
     for lname in code_list:
         symbol_list = DU.get_Symbollist(lname)
         logging.info(symbol_list)
 
         for symbol in symbol_list:
             Process_Prediction(symbol, lastMktDate)
-            # for debug only
-            # if processCount > 6:
-            #     break
-            # else:
-            #     processCount += 1
             
     lastPredictdt = DU.get_Max_date(f"{DBPREDICT}.{TBLDLYPRED}")
     logging.debug(f'Last Prediction date {lastPredictdt}')
+    if lastPredictdt is None:
+        lastPredictdt = FIRSTTRAINDTE
 
     predictDF = DU.load_df_SQL(f"select * from {DBPREDICT}.{TBLDLYPRED} where date = \'{lastPredictdt}\'")
     logging.debug(f'predictDF.size: {predictDF.shape}')
@@ -152,8 +180,13 @@ if __name__ == '__main__':
             return ' '
 
     if len(predictDF) > 0 and not predictOnly:
-        # symlist = data.load_symbols("web_stock_list")
-        symlist = DU.get_Symbollist("web_stock_list")
+        config_file = "../Prod_config/Stk_eodfetch_PythonAnywhere.env"
+        dbconn = SQLDB(config_file)
+        dbconn.setDBSSH()
+        if args.test:
+            symlist = DU.get_Symbollist('test_list')
+        else:
+            symlist = DU.get_Symbollist("web_stock_list")
         logging.debug(f'Web display list : {symlist}')
         symlist2 = list(set(symlist) & set(list(predictDF.Symbol.values)))
         ret = predictDF.set_index('Symbol').loc[symlist2].reset_index(inplace=False)
@@ -165,4 +198,4 @@ if __name__ == '__main__':
         displayDF.to_csv(f'weboutput/gmodel_{lastPredictdt}.csv', index=False)
 
         # refresh the web table and upload the latest prediction
-        DU.StoreWebDaily(displayDF)
+        dbconn.StoreWebDaily(displayDF)
