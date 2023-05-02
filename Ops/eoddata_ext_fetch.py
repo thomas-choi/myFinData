@@ -73,7 +73,7 @@ def yfinance_fetch_eod(sdate, tdate, list_name, dbFlag=True):
         totalDF.to_csv(dlypath, index=False)
         # if debug turn-off below
         totalDF.Date = pd.to_datetime(totalDF.Date)
-        DU.StoreEOD(totalDF, "", TBLDAILYPRICE)
+        DU.StoreEOD(totalDF, None, TBLDAILYPRICE)
         # totalDF.to_sql(name=TBLDAILYPRICE, con=get_DBengine(), if_exists='append', index=False)
     logging.info(f'yfinance_fetch_eod finish the handle {list_name} UPTO {tdate}')
 
