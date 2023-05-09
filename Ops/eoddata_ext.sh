@@ -6,7 +6,7 @@ cd $projDIR
 
 echo `pwd`
 
-mycmd="$projDIR/eoddata_ext_fetch.py -C ../Prod_config/Stk_eodfetch_DO.env"
+mycmd="$projDIR/eoddata_ext_fetch.py"
 echo $mycmd
 
 $HOME/env/myFinData/bin/python $mycmd 

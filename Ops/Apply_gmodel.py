@@ -44,7 +44,7 @@ if __name__ == '__main__':
 
     logging.debug(f'argments: {args}')
     todt = tzNow.date()
-    config_file = "../Prod_config/Stk_eodfetch_DO.env"
+    config_file = "../Prod_config/Stk_eodfetch.env"
     if not path.isfile(config_file):
         print(f'Config File Path {config_file} is not existed')
         quit()
