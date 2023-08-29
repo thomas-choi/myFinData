@@ -21,6 +21,7 @@ LOADDIR = 'loadDB'
 # df - rows of the options chain data
 def   genOptionsFeatures(df):
     dtlist = df['Date'].unique()
+    logging.debug(f'Date List Length: {len(dtlist)}')
 
     flatdf = df.groupby(['Date','OptionType'])[['volume']].sum()
     flatdf['Symbol'] = df.groupby(['Date','OptionType'])[['UnderlyingSymbol']].first()
@@ -34,9 +35,14 @@ def   genOptionsFeatures(df):
     flatdf['PutCallratio'] = 0.0
 
     for tgdate in dtlist:
-        pcratio = flatdf.loc[tgdate,'put']['volume']/flatdf.loc[tgdate,'call']['volume']
-        flatdf.at[(tgdate,'call'), 'PutCallratio'] = pcratio
-        flatdf.at[(tgdate,'put'), 'PutCallratio'] = pcratio
+        try:
+            pcratio = flatdf.loc[tgdate,'put']['volume']/flatdf.loc[tgdate,'call']['volume']
+            flatdf.at[(tgdate,'call'), 'PutCallratio'] = pcratio
+            flatdf.at[(tgdate,'put'), 'PutCallratio'] = pcratio
+        except Exception as error:
+            # handle the exception
+            logging.error(f'An exception ({tgdate}) occurred: {error}') # An exception occurred: division by zero
+            flatdf.drop([tgdate], axis='index', inplace=True)
 
     for i,row in flatdf.iterrows():
         print(i[0], i[1])
@@ -48,15 +54,12 @@ def   genOptionsFeatures(df):
     return flatdf
 
 def ProcessOptionsFeatures(ticker, enddt):
-    logging.debug(f'ProcessOptionsFeatures({ticker}, {enddt}')
+    logging.debug(f'ProcessOptionsFeatures({ticker}, {enddt})')
     # eod_df = DU.load_eod_price(ticker, startdt, enddt)
     sql=f"call GlobalMarketData.get_option_features(\'{ticker}\', \'{enddt}\');"
-    print(sql)
     df = DU.load_df_SQL(sql)
-    print(df.shape)
-    dtlist = df['Date'].unique()
-    print('Date List Length:', len(dtlist))
-    df.head()
+    logging.debug(f'option chain size: {df.shape}')
+
     if len(df) > 0:
         return genOptionsFeatures(df)
     else:
@@ -97,8 +100,7 @@ if __name__ == '__main__':
     logging.info(f'symbol list: {llists}')
     topOIn = 5
     DB=environ.get("DBMKTDATA")
-    opt_tbl="option_features"
-    fullopttbl = f'{DB}.{opt_tbl}'
+    opt_tbl=environ.get("TBLOPTFEATURE")
 
     if not (todt.isoweekday() in range(1,6) or args.forceFlag):
         print('Jobs must be ran from Monday to Friday. use -f otherwise')
@@ -129,10 +131,10 @@ if __name__ == '__main__':
                 symN = os.path.join('opt_features', f'{todt}-{sym}.csv')
                 draw.to_csv(symN, index=False)
                 if args.upload:
-                    logging.info(f'Storing {csvN} in database')
-                    DU.StoreEOD(all_features, None, fullopttbl)
+                    logging.info(f'Storing {symN} in database')
+                    DU.StoreEOD(draw, DB, opt_tbl)
     all_features.to_csv(csvN, index=False)
     if args.upload:
         logging.info(f'Storing {csvN} in database')
-        DU.StoreEOD(all_features, None, fullopttbl)
+        DU.StoreEOD(all_features, DB, opt_tbl)
 
