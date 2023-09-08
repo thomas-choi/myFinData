@@ -19,6 +19,49 @@ DATADIR = 'OptionsChain'
 LOADDIR = 'loadDB'
 
 # df - rows of the options chain data
+def   genOptionsFeaturesV2(df):
+    dtlist = df['Date'].unique()
+
+    flatdf = df.groupby(['Date','OptionType'])[['volume']].sum()
+    flatdf['Symbol'] = df.groupby(['Date','OptionType'])[['UnderlyingSymbol']].first()
+    flatdf['last'] = df.groupby(['Date','OptionType'])[['UnderlyingPrice']].first()
+    print(flatdf)
+
+    flatdf['MaxOI'] = 0.0
+    flatdf['MaxOIStrike'] = 0.0
+    flatdf['MaxOIExpire'] = 0.0
+    flatdf['MaxOIImpVol'] = 0.0
+    flatdf['PutCallratio'] = 0.0
+
+    for tgdate in dtlist:
+        try:
+            pcratio = flatdf.loc[tgdate,'put']['volume']/flatdf.loc[tgdate,'call']['volume']
+            print(f'P/C={pcratio} on {tgdate}')
+            flatdf.at[(tgdate,'call'), 'PutCallratio'] = pcratio
+            flatdf.at[(tgdate,'put'), 'PutCallratio'] = pcratio
+        except Exception as error:
+            # handle the exception
+            print(f"An exception ({tgdate}) occurred:", error) # An exception occurred: division by zero
+            flatdf.drop([tgdate], axis='index', inplace=True)
+
+    for i,row in flatdf.iterrows():
+        print(' first 2 index: ', i[0], i[1])
+        selected = df[(df['OptionType']==i[1]) & (df['Date']==i[0])]
+        maxstrike = selected.groupby(['strike'])[['openInterest']].sum().reset_index().sort_values(by=['openInterest'], ascending=False)
+#         print(maxstrike)
+        mstrike = maxstrike.iloc[0]['strike']
+        mOI = maxstrike.iloc[0]['openInterest']
+        print(f'max strike:{mstrike}, OI{mOI}')
+        maxStrikeSelected = selected[selected['strike'] == mstrike].sort_values(by=['openInterest'], ascending=False)
+#         print(maxStrikeSelected)
+        max_row = maxStrikeSelected.iloc[0]
+        print(f' the max_row: {max_row}')
+        flatdf.at[i, 'MaxOI'] = mOI
+        flatdf.at[i, 'MaxOIStrike'] = max_row['strike']
+        flatdf.at[i, 'MaxOIExpire'] = max_row['Expiration']
+        flatdf.at[i, 'MaxOIImpVol'] = max_row['impliedVolatility']
+    return flatdf
+
 def   genOptionsFeatures(df):
     dtlist = df['Date'].unique()
     logging.debug(f'Date List Length: {len(dtlist)}')
@@ -61,7 +104,7 @@ def ProcessOptionsFeatures(ticker, enddt):
     logging.debug(f'option chain size: {df.shape}')
 
     if len(df) > 0:
-        return genOptionsFeatures(df)
+        return genOptionsFeaturesV2(df)
     else:
         return df
 
