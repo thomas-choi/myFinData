@@ -31,6 +31,10 @@ def   genOptionsFeaturesV2(df):
     flatdf['MaxOIStrike'] = 0.0
     flatdf['MaxOIExpire'] = 0.0
     flatdf['MaxOIImpVol'] = 0.0
+    flatdf['MaxVol'] = 0.0
+    flatdf['MaxVolStrike'] = 0.0
+    flatdf['MaxVolExpire'] = 0.0
+    flatdf['MaxVolImpVol'] = 0.0
     flatdf['PutCallratio'] = 0.0
 
     for tgdate in dtlist:
@@ -47,19 +51,25 @@ def   genOptionsFeaturesV2(df):
     for i,row in flatdf.iterrows():
         print(' first 2 index: ', i[0], i[1])
         selected = df[(df['OptionType']==i[1]) & (df['Date']==i[0])]
+#         print(selected)      
         maxstrike = selected.groupby(['strike'])[['openInterest']].sum().reset_index().sort_values(by=['openInterest'], ascending=False)
-#         print(maxstrike)
-        mstrike = maxstrike.iloc[0]['strike']
-        mOI = maxstrike.iloc[0]['openInterest']
-        print(f'max strike:{mstrike}, OI{mOI}')
-        maxStrikeSelected = selected[selected['strike'] == mstrike].sort_values(by=['openInterest'], ascending=False)
-#         print(maxStrikeSelected)
-        max_row = maxStrikeSelected.iloc[0]
-        print(f' the max_row: {max_row}')
-        flatdf.at[i, 'MaxOI'] = mOI
-        flatdf.at[i, 'MaxOIStrike'] = max_row['strike']
-        flatdf.at[i, 'MaxOIExpire'] = max_row['Expiration']
-        flatdf.at[i, 'MaxOIImpVol'] = max_row['impliedVolatility']
+        mOIstrike = maxstrike.iloc[0]['strike']
+        tmp = selected[selected['strike'] == mOIstrike].sort_values(by=['openInterest'], ascending=False)
+        flatdf.at[i, 'MaxOI'] = maxstrike.iloc[0]['openInterest']
+        flatdf.at[i, 'MaxOIStrike'] = mOIstrike
+        flatdf.at[i, 'MaxOIExpire'] = tmp.iloc[0]['Expiration']
+        flatdf.at[i, 'MaxOIImpVol'] = tmp.iloc[0]['impliedVolatility']    
+
+        tmp = selected.groupby(['strike'])[['volume']].sum().reset_index().sort_values(by=['volume'], ascending=False)
+        mVolstrike = tmp.iloc[0]['strike']
+        tmp2 = selected[selected['strike'] == mVolstrike].sort_values(by=['volume'], ascending=False)
+        print("max Vol Info: ", tmp2.iloc[0])
+        flatdf.at[i, 'MaxVol'] = tmp.iloc[0]['volume']
+        flatdf.at[i, 'MaxVolStrike'] = mVolstrike
+        flatdf.at[i, 'MaxVolExpire'] = tmp2.iloc[0]['Expiration']
+        flatdf.at[i, 'MaxVolImpVol'] = tmp2.iloc[0]['impliedVolatility']   
+#         print(f'==> max OI strike:{mOIstrike}, OI:{mOI}, expire:{mOIexpire}, impVol:{mOIimVol}')
+#         print(f'==> max Volume strike:{mVolstrike}, volume:{mVol}, expire{mVolexpire}, impVol{mVolimVol}')
     return flatdf
 
 def   genOptionsFeatures(df):
@@ -155,7 +165,8 @@ if __name__ == '__main__':
     count = 0
     csvN = os.path.join('opt_features', f'{todt}-ALL.csv')
     all_features = pd.DataFrame()
-    storelist=['Date','Symbol','OptionType','volume','last','MaxOI','MaxOIStrike','MaxOIExpire','MaxOIImpVol','PutCallratio']
+    storelist=['Date','Symbol','OptionType','volume','last','MaxOI','MaxOIStrike','MaxOIExpire','MaxOIImpVol',
+               'MaxVol','MaxVolStrike','MaxVolExpire','MaxVolImpVol','PutCallratio']
 
     for listn in llists:
         slist = DU.get_Symbollist(listn)
