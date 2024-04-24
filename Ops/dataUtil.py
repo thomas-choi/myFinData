@@ -79,7 +79,7 @@ def get_Max_date(dbntable, symbol=None):
         if symbol is None:
             query = f"SELECT max(Date) as maxdate from {dbntable} ;"
         else:
-            query = f"SELECT max(Date) as maxdate from {dbntable} where symbol = \'{symbol}\';"
+            query = "SELECT max(Date) as maxdate from {} where symbol = \'{}\';".format(dbntable, symbol)
         logging.info(f'get_Max_date :{query}')
         df = pd.read_sql(query, get_DBengine())
         max_date = df.maxdate.iloc[0]
@@ -232,17 +232,21 @@ def load_symbols(symlistName):
     """
     # Return list of stock symbols.
     """
-
-    PROD_LIST_DIR = environ.get("PROD_LIST_DIR")
     try:
-        fpath = os.path.join(PROD_LIST_DIR, f'{symlistName}.csv')
-        logging.info(f'Fetch symbols from {fpath}')
-        stock_list = pd.read_csv(fpath)
-        symbol_list = np.sort(stock_list.Symbol.unique())
-        logging.debug(f'{symbol_list}')
-        return symbol_list
+        if symlistName == "master_db_list":
+            # get from DB
+            symbol_list = load_df_SQL("call GlobalMarketData.current_symbols_V2;")
+            symbol_list = symbol_list.Symbol.to_list()
+        else:
+            PROD_LIST_DIR = environ.get("PROD_LIST_DIR")
+            fpath = os.path.join(PROD_LIST_DIR, f'{symlistName}.csv')
+            logging.info(f'Fetch symbols from {fpath}')
+            stock_list = pd.read_csv(fpath)
+            symbol_list = np.sort(stock_list.Symbol.unique())
+            logging.debug(f'{symbol_list}')
     except Exception as e:
         logging.error("Exception occurred at load_symbols()", exc_info=True)
+    return symbol_list
 
 def load_symbols_dict():
     # Return list of stock symbols.

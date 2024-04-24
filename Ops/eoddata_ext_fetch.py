@@ -261,7 +261,7 @@ def fetch_by_exchanges(Sdate, exchanges):
         logging.error("Exception occurred", exc_info=True)
 
 if __name__ == '__main__':
-    logging.basicConfig(filename=f'logging/eoddata_ext_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
+    logging.basicConfig(filename=f'logging/eoddata_ext_{datetime.today().date()}.log', filemode='a', format='%(asctime)s.%(levelname)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
     logging.getLogger().setLevel(logging.DEBUG)
 
     tzNow = DU.nowbyTZ('US/Eastern')
@@ -275,6 +275,7 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--check', dest='checkFlag', action='store_true', default=False)
     parser.add_argument('-f', '--force', dest='forceFlag', action='store_true', default=False)
     parser.add_argument('-t', '--test', dest='test', action='store_true', default=False)
+    parser.add_argument('-m', '--master', dest='master_db_list', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -330,7 +331,10 @@ if __name__ == '__main__':
         quit()
 
     list_N = ["stock_list", "etf_list", "crypto_list", "us-cn_stock_list"]
-    if args.test:
-        list_N=['test_list']
-    for symN in list_N:
-        yfinance_fetch_eod(Sdate, mToday, list_name=symN)
+    if args.master_db_list:
+        yfinance_fetch_eod(Sdate, mToday, list_name="master_db_list")
+    else:
+        if args.test:
+            list_N=['test_list']
+        for symN in list_N:
+            yfinance_fetch_eod(Sdate, mToday, list_name=symN)
