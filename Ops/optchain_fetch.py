@@ -129,7 +129,7 @@ if __name__ == '__main__':
 
     llists = ['etf_list', 'stock_list','us-cn_stock_list']
     if args.test:
-        all_lists=['test_list']
+        llists=['test_list']
     topOIn = 5
     DB=environ.get("DBMKTDATA")
     opt_tbl=environ.get("TBLOPTCHAIN")
