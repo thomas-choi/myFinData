@@ -167,5 +167,5 @@ if __name__ == '__main__':
             'lastTradeDate','lastPrice','bid','ask','change','percentChange','volume',
             'openInterest','impliedVolatility','inTheMoney','contractSize','currency','UnderlyingPrice']
             saveDF=all_chains[nColumns]
-            DU.StoreEOD(saveDF, None, opt_tbl)
+            DU.StoreEOD(saveDF, DB, opt_tbl)
 

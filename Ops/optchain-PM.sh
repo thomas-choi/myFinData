@@ -8,4 +8,4 @@ echo `pwd`
 
 mycmd="$projDIR/optchain_fetch.py"
 
-$HOME/env/myFinData/bin/python $mycmd -S PM -U
+$HOME/env/myFinData/bin/python $mycmd -S PM -U -m
