@@ -114,6 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('-U', '--Upload', dest='upload', action='store_true', default=False)
     parser.add_argument('-c', '--check', dest='checkFlag', action='store_true', default=False)
     parser.add_argument('-f', '--force', dest='forceFlag', action='store_true', default=False)
+    parser.add_argument('-m', '--master', dest='master_db_list', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -128,8 +129,11 @@ if __name__ == '__main__':
     logging.info(f'optchain_fetch on {todt}-{section}; upload is {args.upload}')
 
     llists = ['etf_list', 'stock_list','us-cn_stock_list']
-    if args.test:
-        llists=['test_list']
+    if args.master_db_list:
+        llists=["master_db_list"]
+    elif args.test:
+        list_N=['test_list']
+
     topOIn = 5
     DB=environ.get("DBMKTDATA")
     opt_tbl=environ.get("TBLOPTCHAIN")
@@ -144,7 +148,7 @@ if __name__ == '__main__':
 
     count = 0
     for listn in llists:
-        slist = DU.get_Symbollist(listn)
+        slist = DU.load_symbols(listn)
         all_chains = pd.DataFrame()
         all_topOI = pd.DataFrame()
         csvN = os.path.join(LOADDIR, f'{listn}_{todt}-{section}.csv')
