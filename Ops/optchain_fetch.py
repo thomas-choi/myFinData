@@ -146,6 +146,10 @@ if __name__ == '__main__':
     if args.checkFlag:
         quit()
 
+    nColumns=['Date','Section','UnderlyingSymbol','strike','Expiration','OptionType','contractSymbol',
+    'lastTradeDate','lastPrice','bid','ask','change','percentChange','volume',
+    'openInterest','impliedVolatility','inTheMoney','contractSize','currency','UnderlyingPrice']
+
     count = 0
     for listn in llists:
         slist = DU.load_symbols(listn)
@@ -160,12 +164,13 @@ if __name__ == '__main__':
             if len(a_chain)>0:
                 all_chains = pd.concat([all_chains, a_chain])
                 all_topOI = pd.concat([all_topOI, aOI_df])
-        all_chains.to_csv(csvN, index=False)
-        if args.upload:
-            logging.info(f'Storing {csvN} in database')
-            nColumns=['Date','Section','UnderlyingSymbol','strike','Expiration','OptionType','contractSymbol',
-            'lastTradeDate','lastPrice','bid','ask','change','percentChange','volume',
-            'openInterest','impliedVolatility','inTheMoney','contractSize','currency','UnderlyingPrice']
-            saveDF=all_chains[nColumns]
-            DU.StoreEOD(saveDF, DB, opt_tbl)
+                if args.upload:
+                    logging.info(f'Storing {sym} optchain in database')
+                    saveDF=a_chain[nColumns]
+                    DU.StoreEOD(saveDF, DB, opt_tbl)                    
+        # all_chains.to_csv(csvN, index=False)
+        # if args.upload:
+        #     logging.info(f'Storing {csvN} in database')
+        #     saveDF=all_chains[nColumns]
+        #     DU.StoreEOD(saveDF, DB, opt_tbl)
 
