@@ -18,44 +18,48 @@ import dataUtil as DU
 DATADIR = 'OptionsChain'
 LOADDIR = 'loadDB'
 
-def option_chains(ticker):
+max_retries = 5
+retry_delay = 5
+
+def option_chains(ticker, underlyingPrice=None):
     """https://www.pythonanywhere.com/user/twmchoi2022/files/home/twmchoi2022/myFinData/Ops
     """
-    asset = yf.Ticker(ticker)
-    expirations = asset.options
-    logging.debug(f'{ticker} option chain: {expirations}')
-    chains = pd.DataFrame()
+    for retry in range(max_retries):
 
-    for expiration in expirations:
-        # tuple of two dataframes
+        chains = pd.DataFrame()
         try:
-            opt = asset.option_chain(expiration)
+            asset = yf.Ticker(ticker)
+            histdata = asset.history(period='1d')
+            underlyingPrice = histdata['Close'].iloc[-1]
+                
+            expirations = asset.options
+            logging.debug(f'{ticker} option chain: {expirations}')
 
-            calls = opt.calls
-            calls['OptionType'] = "call"
+            for expiration in expirations:
+                # tuple of two dataframes
+                opt = asset.option_chain(expiration)
 
-            puts = opt.puts
-            puts['OptionType'] = "put"
+                calls = opt.calls
+                calls['OptionType'] = "call"
 
-            chain = pd.concat([calls, puts])
-            chain['Expiration'] = pd.to_datetime(expiration)
+                puts = opt.puts
+                puts['OptionType'] = "put"
 
-            chains = pd.concat([chains, chain])
+                chain = pd.concat([calls, puts])
+                chain['Expiration'] = pd.to_datetime(expiration)
+
+                chains = pd.concat([chains, chain])
+            chains['UnderlyingSymbol'] = ticker
+            chains['UnderlyingPrice'] = underlyingPrice
+
+            return chains
         except Exception as e:
-            logging.error(f"asset.option({ticker}.{expiration}) error: {e}")
-    try:
-        chains['UnderlyingSymbol'] = ticker
-        histdata = asset.history()
-        if len(histdata)>0:
-            lastdata = asset.history().iloc[-1]
-            chains['UnderlyingPrice'] = lastdata.Close
-        else:
-            logging.error(f"option_chains({ticker}.{expirations}) Underlying Price error")
-            chains['UnderlyingPrice'] = -0.0001
-    except Exception as e:
-        logging.error(f"option_chains({ticker}.{expirations}) error: {e}")
+            logging.error(f"asset.option({ticker}) error: {e}")
+            if retry < max_retries-1:
+                logging.error(f"Retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
 
-    return chains
+    return pd.DataFrame()
 
 def pickTopOI(df, pickN=5):
     if len(df)>0:
@@ -69,23 +73,58 @@ def pickTopOI(df, pickN=5):
     else:
         return pd.DataFrame(columns=df.columns.values)
 
-def ProcessOptions(ticker, process_dt, section, topOI, usedFile=False):
+def  current_mkt_price(tickers, process_dt):
+    start_dt =  process_dt - timedelta(days=1)
+    end_dt = process_dt +  timedelta(days=1)
+    data = yf.download(tickers, start=start_dt, end=end_dt, group_by='ticker')
+    data = data.ffill()
+    current_prices = {}
+    for ticker in tickers:
+        current_prices[ticker] = data[ticker]['Close'].iloc[-1]
+    return current_prices
+
+def  getStrikes(in_df):
+    strike_l = list(in_df['strike'].unique())
+    strike_l.sort()
+    return strike_l
+
+def filter_opt_chain(i_df):
+    data = i_df[i_df['lastPrice'] > 0.05]
+    putdata = data[data['OptionType'] == 'put']
+    calldata = data[data['OptionType'] == 'call']
+    OI75 = i_df['openInterest'].quantile(0.25)
+    put75 = putdata[putdata['openInterest']>OI75]
+    call75 = calldata[calldata['openInterest']>OI75]
+    return put75, call75
+
+def ProcessOptions(ticker, underlying_px, process_dt, section, topOI, usedFile=False):
     logging.debug(f'ProcessOptions {ticker} on {process_dt}:{section}')
     underlying_symbol = ticker
     csvN = os.path.join(DATADIR, f'{underlying_symbol}_{process_dt}-{section}.csv')
     if os.path.exists(csvN) and usedFile:
         # read the original frame in from cache (pickle)
         logging.info(f'Recover data from {csvN}')
-        options_frame = pd.read_csv(csvN)
+        try:
+            options_frame = pd.read_csv(csvN)
+            logging.debug(options_frame.head(2))
+        except Exception as e:
+            logging.error(f"asset.option({ticker}) open {csvN} error: {e}")
+            options_frame = pd.DataFrame()
     else:
         # define a Options object
         logging.info(f'Download {underlying_symbol} option chain')
-        options_frame = option_chains(underlying_symbol)
+        options_frame = option_chains(underlying_symbol, underlying_px)
         # let's pickle the dataframe so we don't have to hit the network every time
         if usedFile:
             options_frame.to_csv(csvN, index=False)
             logging.debug(f' Save file {csvN}')
     if len(options_frame) > 0:
+        put_df, call_df = filter_opt_chain(options_frame)
+        logging.debug("putdf")
+        logging.debug(put_df.head(2))
+        logging.debug("call_df")
+        logging.debug(call_df.head(2))
+        options_frame = pd.concat([put_df, call_df], axis=0)
         options_frame = options_frame.sort_values(by=['Expiration','OptionType'])
         options_frame['contractSize'] = 100
         options_frame.insert(0, "Section", section)
@@ -97,7 +136,7 @@ def ProcessOptions(ticker, process_dt, section, topOI, usedFile=False):
 if __name__ == '__main__':
     load_dotenv("../Prod_config/Stk_eodfetch.env") #Check path for env variables
     logging.basicConfig(filename=f'logging/optchain_{datetime.today().date()}.log', filemode='a', format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
-    logging.getLogger().setLevel(logging.DEBUG)
+    logging.getLogger().setLevel(logging.INFO)
 
     tzNow = DU.nowbyTZ('US/Eastern')
     section='PM'
@@ -115,6 +154,8 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--check', dest='checkFlag', action='store_true', default=False)
     parser.add_argument('-f', '--force', dest='forceFlag', action='store_true', default=False)
     parser.add_argument('-m', '--master', dest='master_db_list', action='store_true', default=False)
+    parser.add_argument('-b', '--batchsize', dest='batchsize', type=int, default=30)
+    parser.add_argument('-d', '--delay', dest='delay', type=int, default=retry_delay)
 
     args = parser.parse_args()
 
@@ -125,6 +166,7 @@ if __name__ == '__main__':
         todt = datetime.strptime(args.Date, '%Y-%m-%d').date()
     else:
         todt = tzNow.date()
+    retry_delay = args.delay
 
     logging.info(f'optchain_fetch on {todt}-{section}; upload is {args.upload}')
 
@@ -132,7 +174,7 @@ if __name__ == '__main__':
     if args.master_db_list:
         llists=["master_db_list"]
     elif args.test:
-        list_N=['test_list']
+        llists=['test_list']
 
     topOIn = 5
     DB=environ.get("DBMKTDATA")
@@ -157,18 +199,23 @@ if __name__ == '__main__':
         all_topOI = pd.DataFrame()
         csvN = os.path.join(LOADDIR, f'{listn}_{todt}-{section}.csv')
         csvOIN = os.path.join(LOADDIR, f'{listn}_{todt}-{section}_top{topOIn}.csv')
+        logging.info(f'Symbol list {listn} : {slist}')
+        # cur_prices = current_mkt_price(slist, todt)
         for sym in slist:
             # maxD, sect = DU.get_Max_Options_date(fullopttbl, sym)
             # logging.debug(f'{sym} current MaxDate: {maxD}-{sect}')
-            a_chain, aOI_df = ProcessOptions(sym, todt, section, topOIn, True)
+
+            a_chain, aOI_df = ProcessOptions(sym, None, todt, section, topOIn, True)
             if len(a_chain)>0:
                 all_chains = pd.concat([all_chains, a_chain])
                 all_topOI = pd.concat([all_topOI, aOI_df])
                 if args.upload:
                     logging.info(f'Storing {sym} optchain in database')
                     saveDF=a_chain[nColumns]
-                    DU.StoreEOD(saveDF, DB, opt_tbl)                    
-        # all_chains.to_csv(csvN, index=False)
+                    DU.StoreEOD(saveDF, DB, opt_tbl)    
+        if not args.upload:
+            all_chains.to_csv(csvN, index=False)
+            all_topOI.to_csv(csvOIN, index=False)
         # if args.upload:
         #     logging.info(f'Storing {csvN} in database')
         #     saveDF=all_chains[nColumns]
