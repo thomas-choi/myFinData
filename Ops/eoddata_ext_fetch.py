@@ -52,13 +52,20 @@ def yfinance_fetch_eod(sdate, tdate, list_name, dbFlag=True):
                 logging.info(f'Loading {sym} daily OHLC from {dlypath}')
                 sDF = pd.read_csv(dlypath)
             else:
-                logging.info(f'Loading {sym} daily OHLC from Yahoo! ')
-                sDF = yf.download(sym,sdate,tdate+ timedelta(days=1))
+                edate = tdate+ timedelta(days=1)
+                logging.info(f'Loading {sym} daily OHLC from Yahoo {sdate} to {edate}! ')
+                sDF = yf.download(sym,sdate,edate, auto_adjust=False)
+                sDF.columns = [col[0] for col in sDF.columns]
+                logging.debug(f"{sym} is downloaded DF : {sDF}")
                 if len(sDF) > 0:
-                    sDF = sDF.rename(columns={'Adj Close':'AdjClose'})
                     sDF['Symbol']=sym
                     sDF['Exchange'] = exch_dict[sym]
                     sDF = sDF.reset_index()
+                    # from 2025/2/25, 'Adj Close' is not existed from API
+                    if 'Adj Close' in sDF.columns:
+                        sDF = sDF.rename(columns={'Adj Close':'AdjClose'})
+                    else:
+                        sDF['AdjClose'] = sDF['Close']
                     sDF = sDF[savColumns]
                     sDF['Date'] = pd.to_datetime(sDF['Date']).dt.date
                     logging.info(f'yfinance_fetch_eod: downloaded {sym} from {sDF.Date.iloc[0]} to {sDF.Date.iloc[-1]}')
