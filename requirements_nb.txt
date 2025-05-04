@@ -11,3 +11,4 @@ plotly==5.13.0
 statsmodels==0.13.5
 numpy==1.26.4
 tiingo
+notebook

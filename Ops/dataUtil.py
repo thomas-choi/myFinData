@@ -235,7 +235,7 @@ def load_symbols(symlistName):
     try:
         if symlistName == "master_db_list":
             # get from DB
-            symbol_list = load_df_SQL("call GlobalMarketData.current_symbols_V2;")
+            symbol_list = load_df_SQL("call GlobalMarketData.current_symbols_V4;")
             symbol_list = symbol_list.Symbol.to_list()
         else:
             PROD_LIST_DIR = environ.get("PROD_LIST_DIR")

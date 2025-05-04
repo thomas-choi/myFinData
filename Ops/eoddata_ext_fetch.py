@@ -13,8 +13,25 @@ import pytz
 import time
 import argparse
 import dataUtil as DU
+from tiingo import TiingoClient
+
+load_dotenv()
 
 dbconn = None
+tii_client = None
+tii_i=0
+
+tiikey1 = environ.get("TIIKEY1")
+tiikey2 = environ.get("TIIKEY2")
+
+tii_config = [{
+                'api_key': f'{tiikey1}',
+                'session': True  # Reuse the HTTP session for better performance
+            }, 
+            {
+                'api_key': f'{tiikey2}',
+                'session': True  # Reuse the HTTP session for better performance
+            }]
 
 def fetch_eoddata(quotes, exch, startD, endD):
     try:
@@ -33,8 +50,49 @@ def fetch_eoddata(quotes, exch, startD, endD):
     except Exception as e:
         logging.error("Exception occurred", exc_info=True)
 
-def yfinance_fetch_eod(sdate, tdate, list_name, dbFlag=True):
-    logging.info(f'yfinance_fetch_eod handle {list_name} UPTO {tdate}')
+def yf_download(sym,sdate,edate):
+    sDF = yf.download(sym,sdate,edate, auto_adjust=False)
+    if len(sDF) > 0:
+        sDF = sDF.reset_index()
+        # from 2025/2/25, 'Adj Close' is not existed from API
+        if 'Adj Close' in sDF.columns:
+            sDF = sDF.rename(columns={'Adj Close':'AdjClose'})
+    return sDF
+
+def ti_client():
+    global tii_client, tii_i
+
+    if tii_client is None:
+        logging.debug(f"tii_config({tii_i}):= ", tii_config[tii_i])
+        tii_client = TiingoClient(tii_config[tii_i])
+        tii_i = (tii_i + 1) % len(tii_config)
+    return tii_client
+
+
+def tii_download(sym,sdate,edate):
+    global tii_client
+    try:
+        sDF = ti_client().get_dataframe(sym, startDate=sdate, endDate=edate, frequency='daily')
+        if len(sDF)>0:
+            sDF = sDF.reset_index()
+            sDF = sDF.rename(columns={'volume':'Volume','date':'Date','close':'Close','high':'High','low':'Low','open':'Open','adjClose':'AdjClose'})
+        return sDF
+    except Exception as e:
+        logging.error("Exception occurred", exc_info=True)
+        tii_client=None
+        return pd.DataFrame()
+
+def check_exchange_from_ticker(ticker):
+    st = ticker.split(".")
+    if len(st)>1:
+        return st[-1]
+    else:
+        return ""
+    
+def common_fetch_eod(sdate, tdate, list_name, dbFlag=True): 
+    vendor = environ.get("VENDOR")
+    logging.info(f'common_fetch_eod handle {sdate} UPTO {tdate}, list_name={list_name}, dbFlag={dbFlag}, vendor={vendor}')
+
     symbol_list = DU.load_symbols(list_name)
     if len(symbol_list) <= 0:
         return
@@ -47,47 +105,57 @@ def yfinance_fetch_eod(sdate, tdate, list_name, dbFlag=True):
     for sym in symbol_list:
         sdate = DU.get_Last_Date_by_Sym(f'{DBMKTDATA}.{TBLDAILYPRICE}', sym)
         if tdate >= sdate:
-            dlypath = f'yfinance/{sym}_{sdate}_{tdate}.csv'
+            dlypath = f'{vendor}/{sym}_{sdate}_{tdate}.csv'
             if path.isfile(dlypath):
                 logging.info(f'Loading {sym} daily OHLC from {dlypath}')
                 sDF = pd.read_csv(dlypath)
             else:
                 edate = tdate+ timedelta(days=1)
                 logging.info(f'Loading {sym} daily OHLC from Yahoo {sdate} to {edate}! ')
-                sDF = yf.download(sym,sdate,edate, auto_adjust=False)
-                sDF.columns = [col[0] for col in sDF.columns]
+                if vendor == "yfinance":
+                    sDF = yf_download(sym,sdate,edate)
+                elif vendor=="tiingo":
+                    sDF = tii_download(sym,sdate,edate)
+
+                # sDF.columns = [col[0] for col in sDF.columns]
                 logging.debug(f"{sym} is downloaded DF : {sDF}")
                 if len(sDF) > 0:
+                    # remove multiIndex
+                    if sDF.columns.nlevels>1:
+                        sDF.columns =  [ col[0] for col in sDF.columns]
                     sDF['Symbol']=sym
-                    sDF['Exchange'] = exch_dict[sym]
-                    sDF = sDF.reset_index()
-                    # from 2025/2/25, 'Adj Close' is not existed from API
-                    if 'Adj Close' in sDF.columns:
-                        sDF = sDF.rename(columns={'Adj Close':'AdjClose'})
+                    if sym in exch_dict:
+                        sDF['Exchange'] = exch_dict[sym]
+                    elif (sym == "^HSI"):
+                        sDF['Exchange'] = "HK"
                     else:
-                        sDF['AdjClose'] = sDF['Close']
+                        sDF['Exchange'] = check_exchange_from_ticker(sym)
                     sDF = sDF[savColumns]
                     sDF['Date'] = pd.to_datetime(sDF['Date']).dt.date
-                    logging.info(f'yfinance_fetch_eod: downloaded {sym} from {sDF.Date.iloc[0]} to {sDF.Date.iloc[-1]}')
+                    logging.info(f'common_fetch_eod: downloaded {sym} from {sDF.Date.iloc[0]} to {sDF.Date.iloc[-1]}')
                     sDF = sDF[(sDF['Date'] >= sdate) & (sDF['Date'] <= tdate)]
                     sDF.to_csv(dlypath, index=False)
             if len(sDF) > 0:
-                datallist.append(sDF)
+                if len(sDF)>100:
+                    logging.debug(sDF)
+                    DU.StoreEOD(sDF, None, TBLDAILYPRICE)
+                else:
+                    datallist.append(sDF)
     if dbFlag and len(datallist)>0:
         totalDF = pd.concat(datallist)
-        dlypath = f'yfinance/{list_name}_{sdate}_{tdate}.csv'
+        dlypath = f'{vendor}/{list_name}_{sdate}_{tdate}.csv'
         logging.info(f'outputing {dlypath}')
         totalDF.to_csv(dlypath, index=False)
         # if debug turn-off below
         totalDF.Date = pd.to_datetime(totalDF.Date)
         DU.StoreEOD(totalDF, None, TBLDAILYPRICE)
         # totalDF.to_sql(name=TBLDAILYPRICE, con=get_DBengine(), if_exists='append', index=False)
-    logging.info(f'yfinance_fetch_eod finish the handle {list_name} UPTO {tdate}')
+    logging.info(f'common_fetch_eod finish the handle {list_name} UPTO {tdate}')
 
-def fetch_by_date(sDate, eDate):
+def fetch_by_date(sDate, eDate, listname, dbf=True):
     vendor = environ.get("VENDOR")
     if vendor=="tiingo":
-        tiingo_fetch_by_date(tDate)
+        tiingo_fetch_by_date(sDate, eDate, listname, dbf)
     elif vendor=="eoddata":
         exchanges = ['NYSE','AMEX','NASDAQ']
         for dt in rrule(DAILY, dtstart=Sdate, until=mToday):
@@ -96,7 +164,7 @@ def fetch_by_date(sDate, eDate):
             else:
                 fetch_by_exchanges(dt, exchanges)
     elif vendor == 'yfinance':
-        yfinance_fetch_eod(sDate, eDate);
+        yfinance_fetch_eod(sDate, eDate, listname, dbf)
 
 
 def fetch_by_symbols(Sdate, Edate):
@@ -291,11 +359,12 @@ if __name__ == '__main__':
         todt = datetime.strptime(args.Date, '%Y-%m-%d').date()
     else:
         todt = tzNow.date()
-    if args.Config is not None:
-        config_file = args.Config
-    else:
-        config_file = "../Prod_config/Stk_eodfetch.env"
-    load_dotenv(config_file) #Check path for env variables
+    # if args.Config is not None:
+    #     load_dotenv(args.Config)
+    # else:
+    #     # config_file = "../Prod_config/Stk_eodfetch.env"
+    #     load_dotenv()
+    # # load_dotenv(config_file) #Check path for env variables
 
     DBMKTDATA=environ.get("DBMKTDATA")
     DBPREDICT=environ.get("DBPREDICT")
@@ -338,10 +407,11 @@ if __name__ == '__main__':
         quit()
 
     list_N = ["stock_list", "etf_list", "crypto_list", "us-cn_stock_list"]
+    vendor = environ.get("VENDOR")
     if args.master_db_list:
-        yfinance_fetch_eod(Sdate, mToday, list_name="master_db_list")
+        common_fetch_eod(Sdate, mToday, list_name="master_db_list")
     else:
         if args.test:
             list_N=['test_list']
         for symN in list_N:
-            yfinance_fetch_eod(Sdate, mToday, list_name=symN)
+            common_fetch_eod(Sdate, mToday, list_name=symN)
