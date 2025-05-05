@@ -9,4 +9,4 @@ echo `pwd`
 mycmd="$projDIR/eoddata_ext_fetch.py -m"
 echo $mycmd
 
-$HOME/env/myFinData/bin/python $mycmd
+$HOME/env/myFinData.v2/bin/python $mycmd
