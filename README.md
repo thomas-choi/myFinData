@@ -1,20 +1,7 @@
 # myFin Data
 
-This project is collect daily stock price data and saved in MySQL. It donwnloads data from Yahoo Finance.
+A financial data pipeline that collects daily stock prices, options chains, US interest rates, and volatility data — stored in a DigitalOcean MySQL database. Data sources include Yahoo Finance (yfinance), Interactive Brokers (IB TWS API), Tiingo, and the US Federal Reserve.
 
-### 1) Create a virtualenv named myFinData  
-   ```
-   mkdir ~/env/myFinData  
-   virtualenv myFinData -p 3.8  
-   source ~/env/myFinData/bin/activate  
-   cd to myFinData local directory  
-   pip install -r requirements.txt  
-   ```
-
-### 2) Create a docker image to run the daily batch job to predict stock price 
-   ```
-   docker build --no-cache -f Dockerfile-dev9.1.tf2-py3 -t spred-dev9.1:tf2-py3 .
-   ``` 
-
-### 3) Download Daily US rates information is from
-https://www.federalreserve.gov/releases/h15/
+See **[OPERATIONS.md](./OPERATIONS.md)** for setup, deployment, and cron-job instructions.  
+See **[TECHNICAL-DESIGN.md](./TECHNICAL-DESIGN.md)** for architecture, schema, and technology decisions.  
+See **[HISTORY.md](./HISTORY.md)** for the full change log.

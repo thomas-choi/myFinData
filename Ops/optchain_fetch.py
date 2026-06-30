@@ -45,6 +45,11 @@ def option_chains(ticker, underlyingPrice=None):
                 puts = opt.puts
                 puts['OptionType'] = "put"
 
+                # Cast any boolean columns to int to avoid FutureWarning
+                # when concatenating bool-dtype with numeric-dtype arrays
+                for df_tmp in [calls, puts]:
+                    bool_cols = df_tmp.select_dtypes(include='bool').columns
+                    df_tmp[bool_cols] = df_tmp[bool_cols].astype(int)
                 chain = pd.concat([calls, puts])
                 chain['Expiration'] = pd.to_datetime(expiration)
 
